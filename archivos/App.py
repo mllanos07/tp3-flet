@@ -8,7 +8,7 @@ from Proveedor import VentanaSocios
 from FichaTecnica import VentanaFichas
 from Presupuesto import VentanaCuentas
 
-def coneccion():
+def conexion():
     puerta = None
     try:
         puerta = pymysql.connect(
@@ -24,7 +24,7 @@ def coneccion():
         print("Problema al conectar:", err)
     return puerta
 
-puerta = coneccion()
+puerta = conexion()
 
 def abrir_personas(e, p):
     VentanaPersonas(p, tablero_inicio)
@@ -61,10 +61,8 @@ def menu_principal(p):
     fila_g = ft.Row([ft.Icon(ft.Icons.ATTACH_MONEY, size=26), ft.Text("Cuentas")])
 
     boton_archivo = ft.PopupMenuButton(
-        items=[
-            ft.PopupMenuItem(text="Copiar", icon=ft.Icons.COPY, tooltip="Copiar"),
-            ft.PopupMenuItem(text="Salir", icon=ft.Icons.EXIT_TO_APP, tooltip="Salir"),
-        ],
+        items=[ft.PopupMenuItem(text="Copiar", icon=ft.Icons.COPY, tooltip="Copiar"),
+            ft.PopupMenuItem(text="Salir", icon=ft.Icons.EXIT_TO_APP, tooltip="Salir"),],
         content=ft.Text("Archivo"),
         tooltip="Archivo"
     )
