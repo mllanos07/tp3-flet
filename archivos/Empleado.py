@@ -214,3 +214,4 @@ class VentanaPersonal:
                 tabla
             ], alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         )
+        self.vista.update()

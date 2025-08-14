@@ -86,6 +86,7 @@ def menu_principal(p):
         tooltip="Admin"
     )
 
+    # accesos directos
     boton_clave = ft.IconButton(icon=ft.Icons.PERSON_OUTLINE, tooltip="Clave", on_click=lambda e: ModuloPersonaClave(p, tablero_inicio))
     boton_personas = ft.IconButton(icon=ft.Icons.PERSON, tooltip="Personas", on_click=lambda e: VentanaPersonas(p, tablero_inicio))
     boton_ficha = ft.IconButton(icon=ft.Icons.DIRECTIONS_CAR, tooltip="Ficha Tecnica", on_click=lambda e: VentanaFichas(p, tablero_inicio))
@@ -93,8 +94,8 @@ def menu_principal(p):
     boton_repuesto = ft.IconButton(icon=ft.Icons.BUILD, tooltip="Repuesto", on_click=lambda e: VentanaRepuesto(p, tablero_inicio))
 
     p.add(
-        ft.Row([boton_archivo, boton_admin, boton_herramientas], spacing=8),
-        ft.Row([boton_clave, boton_personas, boton_ficha, boton_cuentas, boton_repuesto])
+        ft.Row([boton_archivo, boton_admin, boton_herramientas], spacing=8), # menu
+        ft.Row([boton_clave, boton_personas, boton_ficha, boton_cuentas, boton_repuesto]) # botones
     )
 
 def tablero_inicio(p):

@@ -24,3 +24,4 @@ class ModuloPersonaClave:
             alignment=ft.MainAxisAlignment.CENTER,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         )
+        self.pantalla.update()

@@ -215,6 +215,7 @@ class VentanaPersonas:
                 tabla
             ], alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
         )
+        self.vista.update()
 
 def menu_hogar(p):
     p.clean()

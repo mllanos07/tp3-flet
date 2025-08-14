@@ -222,3 +222,4 @@ class VentanaRepuesto:
                 padding=20,
             )
         )
+        self.pantalla.update()
