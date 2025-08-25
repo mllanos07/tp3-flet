@@ -1,109 +1,217 @@
+
 import flet as ft
 import pymysql
-from Usuario import ModuloPersonaClave
-from Cliente import VentanaPersonas
-from Repuestos import VentanaRepuesto
-from Empleado import VentanaPersonal
-from Proveedor import VentanaSocios
-from FichaTecnica import VentanaFichas
-from Presupuesto import VentanaCuentas
+from Usuario import Herramienta_Usuario
+from Cliente import Herramienta_Cliente
+from Repuestos import Herramienta_Repuesto
+from Empleado import Herramienta_Empleado
+from Proveedor import Herramienta_Proveedor
+from FichaTecnica import Herramienta_FichaTecnica
+from Presupuesto import Herramienta_Presupuesto
 
-def conexion():
-    puerta = None
+
+def connect_to_db():
     try:
-        puerta = pymysql.connect(
+        connection = pymysql.connect(
             host="localhost",
-            port=3306,
+            port="3306",
             user="root",
             password="root",
             database="taller_mecanico",
-            ssl_disabled=True
+            ssl_disabled=True,
         )
-        print("Conexion lista")
-    except Exception as err:
-        print("Problema al conectar:", err)
-    return puerta
+        if connection.is_connected():
+            print("Conexión exitosa")
+            return connection
+    except Exception as ex:
+        print("Conexión errónea")
+        print(ex)
+        return None
 
-puerta = conexion()
 
-def abrir_personas(e, p):
-    VentanaPersonas(p, tablero_inicio)
+connection = connect_to_db()
 
-def abrir_repuesto(e, p):
-    VentanaRepuesto(p, tablero_inicio)
 
-def abrir_socios(e, p):
-    VentanaSocios(p, tablero_inicio)
+# Navegacionn
+def cliente(e, page: ft.Page):
+    Herramienta_Cliente(page, menu_principal)
 
-def abrir_fichas(e, p):
-    VentanaFichas(p, tablero_inicio)
 
-def abrir_clave(e, p):
-    ModuloPersonaClave(p, tablero_inicio)
+def mostrar_cliente(e, page: ft.Page):
+    Herramienta_Cliente(page, menu_principal)
 
-def abrir_cuentas(e, p):
-    VentanaCuentas(p, tablero_inicio)
 
-def abrir_personal(e, p):
-    VentanaPersonal(p, tablero_inicio)
+def repuesto(e, page: ft.Page):
+    Herramienta_Repuesto(page, menu_principal)
 
-def menu_principal(p):
-    p.clean()
-    p.window.maximized = True
-    p.title = "Panel Taller Amigo"
 
-    fila_a = ft.Row([ft.Icon(ft.Icons.PERSON, size=26), ft.Text("Personas")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_b = ft.Row([ft.Icon(ft.Icons.BUSINESS, size=26), ft.Text("Socios")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_c = ft.Row([ft.Icon(ft.Icons.BUILD, size=26), ft.Text("Repuesto")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_d = ft.Row([ft.Icon(ft.Icons.PEOPLE, size=26), ft.Text("Personal")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_e = ft.Row([ft.Icon(ft.Icons.PERSON_OUTLINE, size=26), ft.Text("Clave")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_f = ft.Row([ft.Icon(ft.Icons.DIRECTIONS_CAR, size=26), ft.Text("Ficha Tecnica")], alignment=ft.MainAxisAlignment.START, spacing=6)
-    fila_g = ft.Row([ft.Icon(ft.Icons.ATTACH_MONEY, size=26), ft.Text("Cuentas")])
+def mostrar_repuesto(e, page: ft.Page):
+    Herramienta_Repuesto(page, menu_principal)
 
-    boton_archivo = ft.PopupMenuButton(
-        items=[ft.PopupMenuItem(text="Copiar", icon=ft.Icons.COPY, tooltip="Copiar"),
-            ft.PopupMenuItem(text="Salir", icon=ft.Icons.EXIT_TO_APP, tooltip="Salir"),],
-        content=ft.Text("Archivo"),
-        tooltip="Archivo"
+
+def proveedor(e, page: ft.Page):
+    Herramienta_Proveedor(page, menu_principal)
+
+
+def producto(e, page: ft.Page):
+    pass
+
+
+def empleado(e, page: ft.Page):
+    Herramienta_Empleado(page, menu_principal)
+
+
+def usuario(e, page: ft.Page):
+    Herramienta_Usuario(page, menu_principal)
+
+
+def ficha_tecnica(e, page: ft.Page):
+    Herramienta_FichaTecnica(page, menu_principal)
+
+
+def presupuesto(e, page: ft.Page):
+    Herramienta_Presupuesto(page, menu_principal)
+
+
+# Menu
+def menu_principal(page: ft.Page):
+    page.clean()
+    page.window.maximized = True
+    page.title = "Administración de Taller Mecánico"
+
+    cliente_icono = ft.Icon(ft.Icons.PERSON, size=28)
+    cliente_item = ft.Row(
+        controls=[cliente_icono, ft.Text("Cliente")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
     )
-    boton_herramientas = ft.PopupMenuButton(
+
+    proveedor_icono = ft.Icon(ft.Icons.BUSINESS, size=28)
+    proveedor_item = ft.Row(
+        controls=[proveedor_icono, ft.Text("Proveedor")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
+    )
+
+    repuesto_icono = ft.Icon(ft.Icons.BUILD, size=28)
+    repuesto_item = ft.Row(
+        controls=[repuesto_icono, ft.Text("Repuesto")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
+    )
+
+    empleado_icono = ft.Icon(ft.Icons.PEOPLE, size=28)
+    empleado_item = ft.Row(
+        controls=[empleado_icono, ft.Text("Empleado")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
+    )
+
+    usuario_icono = ft.Icon(ft.Icons.PERSON_OUTLINE, size=28)
+    usuario_item = ft.Row(
+        controls=[usuario_icono, ft.Text("Usuario")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
+    )
+
+    ficha_tecnica_icono = ft.Icon(ft.Icons.DIRECTIONS_CAR, size=28)
+    ficha_tecnica_item = ft.Row(
+        controls=[ficha_tecnica_icono, ft.Text("Ficha Técnica")],
+        alignment=ft.MainAxisAlignment.START,
+        spacing=8,
+    )
+
+    presupuesto_icono = ft.Icon(ft.Icons.ATTACH_MONEY, size=28)
+    presupuesto_icono_item = ft.Row(
+        controls=[presupuesto_icono, ft.Text("Presupuesto")]
+    )
+
+    # Botones secundarios
+    archivo_menu = ft.PopupMenuButton(
         items=[
-            ft.PopupMenuItem(content=fila_a, on_click=lambda e: VentanaPersonas(p, tablero_inicio)),
-            ft.PopupMenuItem(content=fila_b, on_click=lambda e: VentanaSocios(p, tablero_inicio)),
-            ft.PopupMenuItem(content=fila_c, on_click=lambda e: VentanaRepuesto(p, tablero_inicio)),
-            ft.PopupMenuItem(content=fila_d, on_click=lambda e: VentanaPersonal(p, tablero_inicio)),
-            ft.PopupMenuItem(content=fila_e, on_click=lambda e: ModuloPersonaClave(p, tablero_inicio)),
+            ft.PopupMenuItem(text="Copiar", icon=ft.Icons.COPY, tooltip="Copiar"),
+            ft.PopupMenuItem(text="Salir", icon=ft.Icons.EXIT_TO_APP, tooltip="Salir"),
+        ],
+        content=ft.Text("Archivo"),
+        tooltip="Archivo",
+    )
+
+    herramientas_menu = ft.PopupMenuButton(
+        items=[
+            ft.PopupMenuItem(content=cliente_item, on_click=lambda e: cliente(e, page)),
+            ft.PopupMenuItem(
+                content=proveedor_item, on_click=lambda e: proveedor(e, page)
+            ),
+            ft.PopupMenuItem(
+                content=repuesto_item, on_click=lambda e: repuesto(e, page)
+            ),
+            ft.PopupMenuItem(
+                content=empleado_item, on_click=lambda e: empleado(e, page)
+            ),
+            ft.PopupMenuItem(content=usuario_item, on_click=lambda e: usuario(e, page)),
         ],
         content=ft.Text("Herramientas"),
-        tooltip="Herramientas"
+        tooltip="Administrador de archivos maestros",
     )
-    boton_admin = ft.PopupMenuButton(
+
+    administracion = ft.PopupMenuButton(
         items=[
-            ft.PopupMenuItem(content=fila_f, on_click=lambda e: abrir_fichas(e, p)),
-            ft.PopupMenuItem(content=fila_g, on_click=lambda e: abrir_cuentas(e, p)),
+            ft.PopupMenuItem(content=ficha_tecnica_item, on_click=lambda e: ficha_tecnica(e, page)),
+            ft.PopupMenuItem(content=presupuesto_icono_item, on_click=lambda e: presupuesto(e, page)),
         ],
-        content=ft.Text("Admin"),
-        tooltip="Admin"
+        content=ft.Text("Administración"),
+        tooltip="Administración de presupuesto y ficha técnica",
     )
 
-    # accesos directos
-    boton_clave = ft.IconButton(icon=ft.Icons.PERSON_OUTLINE, tooltip="Clave", on_click=lambda e: ModuloPersonaClave(p, tablero_inicio))
-    boton_personas = ft.IconButton(icon=ft.Icons.PERSON, tooltip="Personas", on_click=lambda e: VentanaPersonas(p, tablero_inicio))
-    boton_ficha = ft.IconButton(icon=ft.Icons.DIRECTIONS_CAR, tooltip="Ficha Tecnica", on_click=lambda e: VentanaFichas(p, tablero_inicio))
-    boton_cuentas = ft.IconButton(icon=ft.Icons.ATTACH_MONEY, tooltip="Cuentas", on_click=lambda e: VentanaCuentas(p, tablero_inicio))
-    boton_repuesto = ft.IconButton(icon=ft.Icons.BUILD, tooltip="Repuesto", on_click=lambda e: VentanaRepuesto(p, tablero_inicio))
-
-    p.add(
-        ft.Row([boton_archivo, boton_admin, boton_herramientas], spacing=8), # menu
-        ft.Row([boton_clave, boton_personas, boton_ficha, boton_cuentas, boton_repuesto]) # botones
+    # Botones principales
+    boton_cliente = ft.IconButton(
+        icon=ft.Icons.PERSON,
+        tooltip="Cliente",
+        on_click=lambda e: mostrar_cliente(e, page),
     )
 
-def tablero_inicio(p):
-    menu_principal(p)
+    boton_usuario = ft.IconButton(
+        icon=ft.Icons.PERSON_OUTLINE,
+        tooltip="Usuario",
+        on_click=lambda e: usuario(e, page),
+    )
 
-def inicio_general(p):
-    p.window.maximized = True
-    menu_principal(p)
+    boton_repuestos = ft.IconButton(
+        icon=ft.Icons.BUILD,
+        tooltip="Repuesto",
+        on_click=lambda e: mostrar_repuesto(e, page),
+    )
+    boton_ficha_tecnica = ft.IconButton(
+        icon=ft.Icons.DIRECTIONS_CAR,
+        tooltip="Ficha Técnica",
+        on_click=lambda e: ficha_tecnica(e, page),
+    )
+    boton_presupuesto = ft.IconButton(
+        icon=ft.Icons.ATTACH_MONEY,
+        tooltip="Presupuesto",
+        on_click=lambda e: presupuesto(e, page),
+    )
 
-if __name__ == "__main__":
-    ft.app(target=inicio_general)
+    page.add(
+        ft.Row(
+            controls=[archivo_menu, administracion, herramientas_menu],
+            spacing=10,
+        ),
+        ft.Row(
+            controls=[
+                boton_cliente,
+                boton_repuestos,
+                boton_ficha_tecnica,
+                boton_presupuesto,
+                boton_usuario,
+            ]
+        ),
+    )
+
+
+def main(page: ft.Page):
+    page.window.maximized = True
+    menu_principal(page)
+
+
+ft.app(target=main)

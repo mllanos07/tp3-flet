@@ -1,27 +1,28 @@
 import flet as ft
 
-class ModuloPersonaClave:
-    def __init__(self, ventana, regresar_menu):
-        self.pantalla = ventana
-        self.volver_al_inicio = regresar_menu
-        self.mostrar_formulario_login()
+class Herramienta_Usuario:
+    def __init__(self, page: ft.Page, main_menu_callback):
+        self.page = page
+        self.main_menu_callback = main_menu_callback
+        self.mostrar_login()
 
-    def mostrar_formulario_login(self):
-        self.pantalla.clean()
-        self.campo_usuario = ft.TextField(label="Usuario", width=250)
-        self.campo_clave = ft.TextField(label="Clave", password=True, width=250)
-        # boton_ingresar = ft.ElevatedButton("Entrar")
-        boton_regresar = ft.ElevatedButton("Entrar", on_click=lambda e: self.volver_al_inicio(self.pantalla))
+    def mostrar_login(self):
+        self.page.clean()
+        self.usuario = ft.TextField(label="Usuario", width=300)
+        self.contrasena = ft.TextField(label="Contraseña", password=True, width=300)
+        iniciar_btn = ft.ElevatedButton("Iniciar sesión")
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=lambda e: self.main_menu_callback(self.page))
 
-        self.pantalla.add(
-            ft.Column([
-                ft.Text("Ingreso al Sistema", size=20, weight="bold"),
-                self.campo_usuario,
-                self.campo_clave,
-                ft.Row([boton_regresar], spacing=8),
-            ],
-            spacing=8,
-            alignment=ft.MainAxisAlignment.CENTER,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Inicio de Sesión", size=24, weight="bold"),
+                    self.usuario,
+                    self.contrasena,
+                    ft.Row([iniciar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            )
         )
-        self.pantalla.update()

@@ -1,215 +1,188 @@
 import flet as ft
 import pymysql
 
-def abrir_carpeta_fichas():
-    llave = None
+def connect_to_db():
     try:
-        llave = pymysql.connect(
+        connection = pymysql.connect(
             host="localhost",
             port=3306,
             user="root",
             password="root",
             database="taller_mecanico",
-            ssl_disabled=True
+            ssl_disabled=True,
         )
-        print("Conexion lista")
-    except Exception as error:
-        print("Error al conectar:", error)
-    return llave
+        if connection.is_connected():
+            print("Conexión exitosa")
+            return connection
+    except Exception as ex:
+        print("Conexión errónea")
+        print(ex)
+        return None
 
-class VentanaFichas:
-    def __init__(self, ventana, volver_menu):
-        self.pantalla = ventana
-        self.volver_al_inicio = volver_menu
-        self.bd = abrir_carpeta_fichas()
-        if self.bd:
-            self.cursor = self.bd.cursor()
-        else:
-            self.cursor = None
-        self.mostrar_fichas()
+class Herramienta_FichaTecnica:
+    def __init__(self, page: ft.Page, main_menu_callback):
+        self.page = page
+        self.main_menu_callback = main_menu_callback
+        self.connection = connect_to_db()
+        self.cursor = self.connection.cursor() if self.connection else None
+        self.search_field = ft.TextField(label="Buscar", width=300, on_change=self.search)
+        self.search_column = ft.Dropdown(
+            options=[
+                ft.dropdown.Option("nro_ficha"),
+                ft.dropdown.Option("cod_cliente"),
+                ft.dropdown.Option("vehiculo"),
+                ft.dropdown.Option("subtotal"),
+                ft.dropdown.Option("mano_obra"),
+                ft.dropdown.Option("total_general"),
+            ],
+            value="nro_ficha",
+            width=200,
+            on_change=self.search,
+        )
+        self.mostrar_ficha_tecnica()
 
-    def volver_a_menu(self, evento=None):
-        self.pantalla.clean()
-        self.volver_al_inicio(self.pantalla)
-
-    def imprimir_fichas(self, evento=None):
-        self.pantalla.snack_bar = ft.SnackBar(ft.Text("Impresion no disponible"))
-        self.pantalla.snack_bar.open = True
-        self.pantalla.update()
-
-    def consulta_fichas(self, evento=None):
-        self.pantalla.clean()
-        self.pantalla.add(ft.Text("Consulta de Fichas", size=20, weight="bold"))
-        self.pantalla.add(self.tabla_fichas())
-        self.pantalla.add(ft.ElevatedButton("Volver", on_click=self.mostrar_fichas))
-        self.pantalla.update()
-
-    def guardar_cambios_ficha(self, evento=None, ficha=None):
-        try:
-            self.cursor.execute(
-                "UPDATE ficha_tecnica SET cod_cliente=%s, vehiculo=%s, subtotal=%s, mano_obra=%s, total_general=%s WHERE nro_ficha=%s",
-                (self.cod_cliente.value, self.vehiculo.value, self.subtotal.value, self.mano_obra.value, self.total_general.value, self.nro_ficha.value)
+    def mostrar_ficha_tecnica(self):
+        self.page.clean()
+        header = ft.Row(
+            controls=[
+                ft.Text("Gestión de Fichas Técnicas", size=20, weight="bold"),
+                ft.ElevatedButton(text="Alta", on_click=self.alta_ficha_tecnica),
+                ft.ElevatedButton(text="Consulta", on_click=self.consulta_ficha_tecnica),
+                ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_fichas_tecnicas),
+                ft.ElevatedButton(text="Volver al Menú", on_click=self.volver_al_menu),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        search_row = ft.Row(
+            [
+                self.search_column,
+                self.search_field,
+            ],
+            alignment=ft.MainAxisAlignment.START,
+        )
+        self.data_table = self.create_ficha_tecnica_table()
+        self.page.add(
+            ft.Container(
+                content=ft.Column(
+                    controls=[header, search_row, self.data_table],
+                    alignment=ft.MainAxisAlignment.START,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=20,
             )
-            self.bd.commit()
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Ficha actualizada correctamente"))
-            self.pantalla.snack_bar.open = True
-            self.mostrar_fichas()
-        except Exception as error:
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Error al actualizar: {}".format(error)))
-            self.pantalla.snack_bar.open = True
-            self.pantalla.update()
-
-    def actualizar_ficha(self, evento=None, ficha=None):
-        self.pantalla.clean()
-        self.nro_ficha = ft.TextField(label="Nro Ficha", value=str(ficha[0]), width=250, disabled=True)
-        self.cod_cliente = ft.TextField(label="Codigo Cliente", value=str(ficha[1]), width=250)
-        self.vehiculo = ft.TextField(label="Vehiculo", value=ficha[2], width=250)
-        self.subtotal = ft.TextField(label="Subtotal", value=str(ficha[3]), width=250)
-        self.mano_obra = ft.TextField(label="Mano de Obra", value=str(ficha[4]), width=250)
-        self.total_general = ft.TextField(label="Total General", value=str(ficha[5]), width=250)
-
-        btn_guardar = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_cambios_ficha(e, ficha))
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_fichas)
-
-        self.pantalla.add(
-            ft.Column([
-                ft.Text("Editar Ficha", size=20, weight="bold"),
-                self.nro_ficha,
-                self.cod_cliente,
-                self.vehiculo,
-                self.subtotal,
-                self.mano_obra,
-                self.total_general,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
         )
-        self.pantalla.update()
 
-    def eliminar_ficha(self, evento=None, ficha=None):
+    def alta_ficha_tecnica(self, e):
+        self.page.clean()
+        self.nro_ficha = ft.TextField(label="Nro Ficha", width=300)
+        self.cod_cliente = ft.TextField(label="Código Cliente", width=300)
+        self.vehiculo = ft.TextField(label="Vehículo", width=300)
+        self.subtotal = ft.TextField(label="Subtotal", width=300)
+        self.mano_obra = ft.TextField(label="Mano de Obra", width=300)
+        self.total_general = ft.TextField(label="Total General", width=300)
+
+        guardar_btn = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_ficha_tecnica)
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_ficha_tecnica)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Alta de Ficha Técnica", size=24, weight="bold"),
+                    self.nro_ficha,
+                    self.cod_cliente,
+                    self.vehiculo,
+                    self.subtotal,
+                    self.mano_obra,
+                    self.total_general,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
+        )
+        self.page.update()
+
+    def guardar_ficha_tecnica(self, e):
         try:
-            nro_ficha = ficha[0]
-            self.cursor.execute("DELETE FROM ficha_tecnica WHERE nro_ficha = %s", (nro_ficha,))
-            self.bd.commit()
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Ficha eliminada correctamente"))
-            self.pantalla.snack_bar.open = True
-            self.mostrar_fichas()
-        except Exception as error:
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Error al eliminar: {}".format(error)))
-            self.pantalla.snack_bar.open = True
-            self.pantalla.update()
-
-    def guardar_nueva_ficha(self, evento=None):
-        try:
-            if not self.nro_ficha.value or not self.vehiculo.value:
-                self.pantalla.snack_bar = ft.SnackBar(ft.Text("Nro Ficha y Vehiculo son obligatorios"))
-                self.pantalla.snack_bar.open = True
-                self.pantalla.update()
-                return
-
-            try:
-                nro_ficha = int(self.nro_ficha.value)
-            except ValueError:
-                self.pantalla.snack_bar = ft.SnackBar(ft.Text("Nro Ficha debe ser un numero entero"))
-                self.pantalla.snack_bar.open = True
-                self.pantalla.update()
-                return
-
-            cod_cliente = self.cod_cliente.value if self.cod_cliente.value else None
-            if cod_cliente:
-                self.cursor.execute("SELECT cod_cliente FROM cliente WHERE cod_cliente=%s", (cod_cliente,))
-                if not self.cursor.fetchone():
-                    self.pantalla.snack_bar = ft.SnackBar(ft.Text("El codigo de cliente no existe"))
-                    self.pantalla.snack_bar.open = True
-                    self.pantalla.update()
-                    return
-
-            try:
-                subtotal = float(self.subtotal.value) if self.subtotal.value else None
-            except ValueError:
-                self.pantalla.snack_bar = ft.SnackBar(ft.Text("Subtotal debe ser un numero"))
-                self.pantalla.snack_bar.open = True
-                self.pantalla.update()
-                return
-            try:
-                mano_obra = float(self.mano_obra.value) if self.mano_obra.value else None
-            except ValueError:
-                self.pantalla.snack_bar = ft.SnackBar(ft.Text("Mano de Obra debe ser un numero"))
-                self.pantalla.snack_bar.open = True
-                self.pantalla.update()
-                return
-            try:
-                total_general = float(self.total_general.value) if self.total_general.value else None
-            except ValueError:
-                self.pantalla.snack_bar = ft.SnackBar(ft.Text("Total General debe ser un numero"))
-                self.pantalla.snack_bar.open = True
-                self.pantalla.update()
-                return
-
             self.cursor.execute(
                 "INSERT INTO ficha_tecnica (nro_ficha, cod_cliente, vehiculo, subtotal, mano_obra, total_general) VALUES (%s, %s, %s, %s, %s, %s)",
-                (nro_ficha, cod_cliente, self.vehiculo.value, subtotal, mano_obra, total_general)
+                (
+                    self.nro_ficha.value,
+                    self.cod_cliente.value,
+                    self.vehiculo.value,
+                    self.subtotal.value,
+                    self.mano_obra.value,
+                    self.total_general.value,
+                ),
             )
-            self.bd.commit()
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Ficha guardada correctamente"))
-            self.pantalla.snack_bar.open = True
-            self.mostrar_fichas()
-        except Exception as error:
-            self.pantalla.snack_bar = ft.SnackBar(ft.Text("Error al guardar: {}".format(error)))
-            self.pantalla.snack_bar.open = True
-            self.pantalla.update()
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Ficha técnica guardada correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_ficha_tecnica()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al guardar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
 
-    def alta_ficha(self, evento=None):
-        self.pantalla.clean()
-        self.nro_ficha = ft.TextField(label="Nro Ficha", width=250)
-        self.cod_cliente = ft.TextField(label="Codigo Cliente", width=250)
-        self.vehiculo = ft.TextField(label="Vehiculo", width=250)
-        self.subtotal = ft.TextField(label="Subtotal", width=250)
-        self.mano_obra = ft.TextField(label="Mano de Obra", width=250)
-        self.total_general = ft.TextField(label="Total General", width=250)
+    def consulta_ficha_tecnica(self, e):
+        self.page.clean()
+        self.page.add(ft.Text("Consulta de Fichas Técnicas", size=24, weight="bold"))
+        self.page.add(self.create_ficha_tecnica_table())
+        self.page.add(ft.ElevatedButton("Volver", on_click=self.mostrar_ficha_tecnica))
+        self.page.update()
 
-        btn_guardar = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_nueva_ficha)
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_fichas)
+    def imprimir_fichas_tecnicas(self, e):
+        self.page.snack_bar = ft.SnackBar(ft.Text("Función de impresión no implementada"))
+        self.page.snack_bar.open = True
+        self.page.update()
 
-        self.pantalla.add(
-            ft.Column([
-                ft.Text("Alta de Ficha", size=20, weight="bold"),
-                self.nro_ficha,
-                self.cod_cliente,
-                self.vehiculo,
-                self.subtotal,
-                self.mano_obra,
-                self.total_general,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
-        )
-        self.pantalla.update()
+    def volver_al_menu(self, e):
+        self.page.clean()
+        self.main_menu_callback(self.page)
 
-    def tabla_fichas(self):
+    def create_ficha_tecnica_table(self):
         if not self.cursor:
-            print("No hay conexion a la base de datos")
-            return ft.Text("No hay conexion a la base de datos")
+            print("No hay conexión a la base de datos")
+            return ft.Text("No hay conexión a la base de datos")
 
-        consulta = """
+        listado_todas_fichas = """
             SELECT nro_ficha, cod_cliente, vehiculo, subtotal, mano_obra, total_general
             FROM ficha_tecnica
             ORDER BY nro_ficha
         """
-        self.cursor.execute(consulta)
-        datos = self.cursor.fetchall()
-        filas = []
+        self.cursor.execute(listado_todas_fichas)
+        datos_fichas = self.cursor.fetchall()
+        self.all_data = datos_fichas
+        rows = self.get_rows(datos_fichas)
 
-        for ficha in datos:
-            btn_borrar = ft.IconButton(
+        data_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Nro Ficha")),
+                ft.DataColumn(ft.Text("Código Cliente")),
+                ft.DataColumn(ft.Text("Vehículo")),
+                ft.DataColumn(ft.Text("Subtotal")),
+                ft.DataColumn(ft.Text("Mano de Obra")),
+                ft.DataColumn(ft.Text("Total General")),
+                ft.DataColumn(ft.Text("Acciones")),
+            ],
+            rows=rows,
+        )
+        return data_table
+
+    def get_rows(self, fichas):
+        rows = []
+        for ficha in fichas:
+            eliminar_button = ft.IconButton(
                 icon=ft.Icons.DELETE,
                 tooltip="Borrar",
-                on_click=lambda e, f=ficha: self.eliminar_ficha(e, f),
+                on_click=lambda e, f=ficha: self.eliminar_ficha_tecnica(e, f),
             )
-            btn_editar = ft.IconButton(
+            actualizar_button = ft.IconButton(
                 icon=ft.Icons.EDIT,
                 tooltip="Modificar",
-                on_click=lambda e, f=ficha: self.actualizar_ficha(e, f),
+                on_click=lambda e, f=ficha: self.actualizar_ficha_tecnica(e, f),
             )
-            filas.append(
+            rows.append(
                 ft.DataRow(
                     cells=[
                         ft.DataCell(ft.Text(str(ficha[0]))),
@@ -218,39 +191,94 @@ class VentanaFichas:
                         ft.DataCell(ft.Text(str(ficha[3]))),
                         ft.DataCell(ft.Text(str(ficha[4]))),
                         ft.DataCell(ft.Text(str(ficha[5]))),
-                        ft.DataCell(ft.Row(controls=[btn_borrar, btn_editar])),
+                        ft.DataCell(ft.Row(controls=[eliminar_button, actualizar_button])),
                     ],
                 ),
             )
+        return rows
 
-        tabla = ft.DataTable(
-            columns=[
-                ft.DataColumn(ft.Text("Nro Ficha")),
-                ft.DataColumn(ft.Text("Codigo Cliente")),
-                ft.DataColumn(ft.Text("Vehiculo")),
-                ft.DataColumn(ft.Text("Subtotal")),
-                ft.DataColumn(ft.Text("Mano de Obra")),
-                ft.DataColumn(ft.Text("Total General")),
-                ft.DataColumn(ft.Text("Acciones")),
-            ],
-            rows=filas,
-        )
-        return tabla
+    def search(self, e):
+        search_term = self.search_field.value.lower()
+        search_column = self.search_column.value
+        filtered_data = []
 
-    def mostrar_fichas(self, evento=None):
-        self.pantalla.clean()
-        fila_botones = ft.Row([
-            ft.Text("Gestion de Fichas", size=18, weight="bold"),
-            ft.ElevatedButton(text="Alta", on_click=self.alta_ficha),
-            ft.ElevatedButton(text="Consulta", on_click=self.consulta_fichas),
-            ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_fichas),
-            ft.ElevatedButton(text="Volver", on_click=self.volver_a_menu),
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        tabla = self.tabla_fichas()
-        self.pantalla.add(
-            ft.Column([
-                fila_botones,
-                tabla
-            ], alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+        for row in self.all_data:
+            if search_column == "nro_ficha" and str(row[0]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "cod_cliente" and str(row[1]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "vehiculo" and row[2].lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "subtotal" and str(row[3]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "mano_obra" and str(row[4]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "total_general" and str(row[5]).lower().__contains__(search_term):
+                filtered_data.append(row)
+
+        self.data_table.rows = self.get_rows(filtered_data)
+        self.page.update()
+
+    def eliminar_ficha_tecnica(self, e, ficha):
+        try:
+            nro_ficha = ficha[0]
+            self.cursor.execute("DELETE FROM ficha_tecnica WHERE nro_ficha = %s", (nro_ficha,))
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Ficha técnica eliminada correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_ficha_tecnica()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al eliminar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def actualizar_ficha_tecnica(self, e, ficha):
+        self.page.clean()
+        self.nro_ficha = ft.TextField(label="Nro Ficha", value=str(ficha[0]), width=300, disabled=True)
+        self.cod_cliente = ft.TextField(label="Código Cliente", value=str(ficha[1]), width=300)
+        self.vehiculo = ft.TextField(label="Vehículo", value=ficha[2], width=300)
+        self.subtotal = ft.TextField(label="Subtotal", value=str(ficha[3]), width=300)
+        self.mano_obra = ft.TextField(label="Mano de Obra", value=str(ficha[4]), width=300)
+        self.total_general = ft.TextField(label="Total General", value=str(ficha[5]), width=300)
+
+        guardar_btn = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_cambios_ficha_tecnica(e, ficha))
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_ficha_tecnica)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Editar Ficha Técnica", size=24, weight="bold"),
+                    self.nro_ficha,
+                    self.cod_cliente,
+                    self.vehiculo,
+                    self.subtotal,
+                    self.mano_obra,
+                    self.total_general,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
         )
-        self.pantalla.update()
+        self.page.update()
+
+    def guardar_cambios_ficha_tecnica(self, e, ficha):
+        try:
+            self.cursor.execute(
+                "UPDATE ficha_tecnica SET cod_cliente=%s, vehiculo=%s, subtotal=%s, mano_obra=%s, total_general=%s WHERE nro_ficha=%s",
+                (
+                    self.cod_cliente.value,
+                    self.vehiculo.value,
+                    self.subtotal.value,
+                    self.mano_obra.value,
+                    self.total_general.value,
+                    self.nro_ficha.value,
+                ),
+            )
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Ficha técnica actualizada correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_ficha_tecnica()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al actualizar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()

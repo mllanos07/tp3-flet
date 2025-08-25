@@ -1,215 +1,343 @@
 import flet as ft
 import pymysql
 
-def conectar_billetera():
-    caja = None
+def connect_to_db():
     try:
-        caja = pymysql.connect(
+        connection = pymysql.connect(
             host="localhost",
             port=3306,
             user="root",
             password="root",
             database="taller_mecanico",
-            ssl_disabled=True
+            ssl_disabled=True,
         )
-        print("Conexion lista")
-    except Exception as error:
-        print("Error al conectar:", error)
-    return caja
+        if connection.is_connected():
+            print("Conexión exitosa")
+            return connection
+    except Exception as ex:
+        print("Conexión errónea")
+        print(ex)
+        return None
 
-class VentanaCuentas:
-    def __init__(self, pantalla, volver_a_inicio):
-        self.vista = pantalla
-        self.volver_menu_principal = volver_a_inicio
-        self.db = conectar_billetera()
-        if self.db:
-            self.cur = self.db.cursor()
-        else:
-            self.cur = None
-        self.mostrar_cuentas()
+class Herramienta_Presupuesto:
+    def __init__(self, page: ft.Page, main_menu_callback):
+        self.page = page
+        self.main_menu_callback = main_menu_callback
+        self.connection = connect_to_db()
+        self.cursor = self.connection.cursor() if self.connection else None
+        self.search_field = ft.TextField(label="Buscar", width=300, on_change=self.search)
+        self.search_column = ft.Dropdown(
+            options=[
+                ft.dropdown.Option("nro_presupuesto"),
+                ft.dropdown.Option("cod_cliente"),
+                ft.dropdown.Option("descripcion"),
+                ft.dropdown.Option("total_presupuesto"),
+                ft.dropdown.Option("total_gastado"),
+            ],
+            value="nro_presupuesto",
+            width=200,
+            on_change=self.search,
+        )
+        self.mostrar_presupuesto()
 
-    def volver_a_menu(self, evento):
-        self.vista.clean()
-        self.volver_menu_principal(self.vista)
-
-    def imprimir_cuentas(self, evento):
-        self.vista.snack_bar = ft.SnackBar(ft.Text("No se puede imprimir todavia"))
-        self.vista.snack_bar.open = True
-        self.vista.update()
-
-    def consulta_cuentas(self, evento):
-        self.vista.clean()
-        tabla, total_presu, total_gasto = self.tabla_cuentas()
-        self.vista.add(ft.Text("Consulta de Cuentas", size=20, weight="bold"))
-        self.vista.add(ft.Text(f"Total Presupuestado: ${total_presu}", size=16, weight="bold"))
-        self.vista.add(ft.Text(f"Total Gastado: ${total_gasto}", size=16, weight="bold"))
-        self.vista.add(tabla)
-        self.vista.add(ft.ElevatedButton("Volver", on_click=self.mostrar_cuentas))
-        self.vista.update()
-
-    def guardar_edicion(self, evento, cuenta):
-        try:
-            self.cur.execute(
-                "UPDATE presupuesto SET cod_cliente=%s, descripcion=%s, total_presupuesto=%s, total_gastado=%s WHERE nro_presupuesto=%s",
-                (self.cod_cliente.value, self.descripcion.value, self.total_presupuesto.value, self.total_gastado.value, self.nro_presupuesto.value)
+    def mostrar_presupuesto(self):
+        self.page.clean()
+        header = ft.Row(
+            controls=[
+                ft.Text("Gestión de Presupuestos", size=20, weight="bold"),
+                ft.ElevatedButton(text="Alta", on_click=self.alta_presupuesto),
+                ft.ElevatedButton(text="Consulta", on_click=self.consulta_presupuesto),
+                ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_presupuestos),
+                ft.ElevatedButton(text="Volver al Menú", on_click=self.volver_al_menu),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        search_row = ft.Row(
+            [
+                self.search_column,
+                self.search_field,
+            ],
+            alignment=ft.MainAxisAlignment.START,
+        )
+        self.data_table, total_presupuesto, total_gastado = self.create_presupuesto_table()
+        self.page.add(
+            ft.Container(
+                content=ft.Column(
+                    controls=[
+                        header,
+                        search_row,
+                        ft.Text(f"Total Presupuestado: ${total_presupuesto}", size=16, weight="bold"),
+                        ft.Text(f"Total Gastado: ${total_gastado}", size=16, weight="bold"),
+                        self.data_table
+                    ],
+                    alignment=ft.MainAxisAlignment.START,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=20,
             )
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Cuenta actualizada correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_cuentas()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al actualizar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
-
-    def actualizar_cuenta(self, evento, cuenta):
-        self.vista.clean()
-        self.nro_presupuesto = ft.TextField(label="Nro Cuenta", value=str(cuenta[0]), width=250, disabled=True)
-        self.cod_cliente = ft.TextField(label="Codigo Cliente", value=str(cuenta[1]), width=250)
-        self.descripcion = ft.TextField(label="Descripcion", value=cuenta[2], width=250)
-        self.total_presupuesto = ft.TextField(label="Total Presupuestado", value=str(cuenta[3]), width=250)
-        self.total_gastado = ft.TextField(label="Total Gastado", value=str(cuenta[4]), width=250)
-
-        btn_guardar = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_edicion(e, cuenta))
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_cuentas)
-
-        self.vista.add(
-            ft.Column([
-                ft.Text("Editar Cuenta", size=20, weight="bold"),
-                self.nro_presupuesto,
-                self.cod_cliente,
-                self.descripcion,
-                self.total_presupuesto,
-                self.total_gastado,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
         )
-        self.vista.update()
 
-    def eliminar_cuenta(self, evento, cuenta):
-        try:
-            nro_presupuesto = cuenta[0]
-            self.cur.execute("DELETE FROM presupuesto WHERE nro_presupuesto = %s", (nro_presupuesto,))
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Cuenta eliminada correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_cuentas()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al eliminar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
+    def alta_presupuesto(self, e):
+        self.page.clean()
+        self.nro_presupuesto = ft.TextField(label="Nro Presupuesto", width=300)
+        self.cod_cliente = ft.TextField(label="Código Cliente", width=300)
+        self.descripcion = ft.TextField(label="Descripción", width=300)
+        self.total_presupuesto = ft.TextField(label="Total Presupuesto", width=300)
+        self.total_gastado = ft.TextField(label="Total Gastado", width=300)
 
-    def guardar_nueva_cuenta(self, evento):
+        guardar_btn = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_presupuesto)
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_presupuesto)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Alta de Presupuesto", size=24, weight="bold"),
+                    self.nro_presupuesto,
+                    self.cod_cliente,
+                    self.descripcion,
+                    self.total_presupuesto,
+                    self.total_gastado,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
+        )
+        self.page.update()
+
+    def guardar_presupuesto(self, e):
         try:
-            self.cur.execute(
+            self.cursor.execute(
                 "INSERT INTO presupuesto (nro_presupuesto, cod_cliente, descripcion, total_presupuesto, total_gastado) VALUES (%s, %s, %s, %s, %s)",
-                (self.nro_presupuesto.value, self.cod_cliente.value, self.descripcion.value, self.total_presupuesto.value, self.total_gastado.value)
+                (
+                    self.nro_presupuesto.value,
+                    self.cod_cliente.value,
+                    self.descripcion.value,
+                    self.total_presupuesto.value,
+                    self.total_gastado.value,
+                ),
             )
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Cuenta guardada correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_cuentas()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al guardar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Presupuesto guardado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_presupuesto()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al guardar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
 
-    def alta_cuenta(self, evento):
-        self.vista.clean()
-        self.nro_presupuesto = ft.TextField(label="Nro Cuenta", width=250)
-        self.cod_cliente = ft.TextField(label="Codigo Cliente", width=250)
-        self.descripcion = ft.TextField(label="Descripcion", width=250)
-        self.total_presupuesto = ft.TextField(label="Total Presupuestado", width=250)
-        self.total_gastado = ft.TextField(label="Total Gastado", width=250)
+    def consulta_presupuesto(self, e):
+        self.page.clean()
+        data_table, total_presupuesto, total_gastado = self.create_presupuesto_table()
+        self.page.add(ft.Text("Consulta de Presupuestos", size=24, weight="bold"))
+        self.page.add(ft.Text(f"Total Presupuestado: ${total_presupuesto}", size=16, weight="bold"))
+        self.page.add(ft.Text(f"Total Gastado: ${total_gastado}", size=16, weight="bold"))
+        self.page.add(data_table)
+        self.page.add(ft.ElevatedButton("Volver", on_click=self.mostrar_presupuesto))
+        self.page.update()
 
-        btn_guardar = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_nueva_cuenta)
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_cuentas)
+    def imprimir_presupuestos(self, e):
+        self.page.snack_bar = ft.SnackBar(ft.Text("Función de impresión no implementada"))
+        self.page.snack_bar.open = True
+        self.page.update()
 
-        self.vista.add(
-            ft.Column([
-                ft.Text("Alta de Cuenta", size=20, weight="bold"),
-                self.nro_presupuesto,
-                self.cod_cliente,
-                self.descripcion,
-                self.total_presupuesto,
-                self.total_gastado,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
-        )
-        self.vista.update()
+    def volver_al_menu(self, e):
+        self.page.clean()
+        self.main_menu_callback(self.page)
 
-    def tabla_cuentas(self):
-        if not self.cur:
-            print("No hay conexion a la base de datos")
-            return ft.Text("No hay conexion a la base de datos"), 0, 0
+    def create_presupuesto_table(self):
+        if not self.cursor:
+            print("No hay conexión a la base de datos")
+            return ft.Text("No hay conexión a la base de datos"), 0, 0
 
-        consulta = """
+        listado_todos_presupuestos = """
             SELECT nro_presupuesto, cod_cliente, descripcion, total_presupuesto, total_gastado
             FROM presupuesto
             ORDER BY nro_presupuesto
         """
-        self.cur.execute(consulta)
-        datos = self.cur.fetchall()
-        filas = []
+        self.cursor.execute(listado_todos_presupuestos)
+        datos_presupuestos = self.cursor.fetchall()
+        self.all_data = datos_presupuestos
+        rows = []
 
-        total_presu = 0
-        total_gasto = 0
+        total_presupuesto = 0
+        total_gastado = 0
 
-        for cuenta in datos:
-            total_presu += float(cuenta[3] or 0)
-            total_gasto += float(cuenta[4] or 0)
-            btn_borrar = ft.IconButton(
+        for presupuesto in datos_presupuestos:
+            total_presupuesto += float(presupuesto[3] or 0)
+            total_gastado += float(presupuesto[4] or 0)
+            eliminar_button = ft.IconButton(
                 icon=ft.Icons.DELETE,
                 tooltip="Borrar",
-                on_click=lambda e, c=cuenta: self.eliminar_cuenta(e, c),
+                on_click=lambda e, p=presupuesto: self.eliminar_presupuesto(e, p),
             )
-            btn_editar = ft.IconButton(
+            actualizar_button = ft.IconButton(
                 icon=ft.Icons.EDIT,
                 tooltip="Modificar",
-                on_click=lambda e, c=cuenta: self.actualizar_cuenta(e, c),
+                on_click=lambda e, p=presupuesto: self.actualizar_presupuesto(e, p),
             )
-            filas.append(
+            rows.append(
                 ft.DataRow(
                     cells=[
-                        ft.DataCell(ft.Text(str(cuenta[0]))),
-                        ft.DataCell(ft.Text(str(cuenta[1]))),
-                        ft.DataCell(ft.Text(cuenta[2])),
-                        ft.DataCell(ft.Text(str(cuenta[3]))),
-                        ft.DataCell(ft.Text(str(cuenta[4]))),
-                        ft.DataCell(ft.Row(controls=[btn_borrar, btn_editar])),
+                        ft.DataCell(ft.Text(str(presupuesto[0]))),
+                        ft.DataCell(ft.Text(str(presupuesto[1]))),
+                        ft.DataCell(ft.Text(presupuesto[2])),
+                        ft.DataCell(ft.Text(str(presupuesto[3]))),
+                        ft.DataCell(ft.Text(str(presupuesto[4]))),
+                        ft.DataCell(ft.Row(controls=[eliminar_button, actualizar_button])),
                     ],
                 ),
             )
 
-        tabla = ft.DataTable(
+        data_table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Nro Cuenta")),
-                ft.DataColumn(ft.Text("Codigo Cliente")),
-                ft.DataColumn(ft.Text("Descripcion")),
-                ft.DataColumn(ft.Text("Total Presupuestado")),
+                ft.DataColumn(ft.Text("Nro Presupuesto")),
+                ft.DataColumn(ft.Text("Código Cliente")),
+                ft.DataColumn(ft.Text("Descripción")),
+                ft.DataColumn(ft.Text("Total Presupuesto")),
                 ft.DataColumn(ft.Text("Total Gastado")),
                 ft.DataColumn(ft.Text("Acciones")),
             ],
-            rows=filas,
+            rows=rows,
         )
-        return tabla, total_presu, total_gasto
+        return data_table, total_presupuesto, total_gastado
 
-    def mostrar_cuentas(self):
-        self.vista.clean()
-        fila_botones = ft.Row([
-            ft.Text("Gestion de Cuentas", size=18, weight="bold"),
-            ft.ElevatedButton(text="Alta", on_click=self.alta_cuenta),
-            ft.ElevatedButton(text="Consulta", on_click=self.consulta_cuentas),
-            ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_cuentas),
-            ft.ElevatedButton(text="Volver", on_click=self.volver_a_menu),
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        tabla, total_presu, total_gasto = self.tabla_cuentas()
-        self.vista.add(
-            ft.Column([
-                fila_botones,
-                ft.Text(f"Total Presupuestado: ${total_presu}", size=16, weight="bold"),
-                ft.Text(f"Total Gastado: ${total_gasto}", size=16, weight="bold"),
-                tabla
-            ], alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    def eliminar_presupuesto(self, e, presupuesto):
+        try:
+            nro_presupuesto = presupuesto[0]
+            self.cursor.execute("DELETE FROM presupuesto WHERE nro_presupuesto = %s", (nro_presupuesto,))
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Presupuesto eliminado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_presupuesto()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al eliminar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def actualizar_presupuesto(self, e, presupuesto):
+        self.page.clean()
+        self.nro_presupuesto = ft.TextField(label="Nro Presupuesto", value=str(presupuesto[0]), width=300, disabled=True)
+        self.cod_cliente = ft.TextField(label="Código Cliente", value=str(presupuesto[1]), width=300)
+        self.descripcion = ft.TextField(label="Descripción", value=presupuesto[2], width=300)
+        self.total_presupuesto = ft.TextField(label="Total Presupuesto", value=str(presupuesto[3]), width=300)
+        self.total_gastado = ft.TextField(label="Total Gastado", value=str(presupuesto[4]), width=300)
+
+        guardar_btn = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_cambios_presupuesto(e, presupuesto))
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_presupuesto)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Editar Presupuesto", size=24, weight="bold"),
+                    self.nro_presupuesto,
+                    self.cod_cliente,
+                    self.descripcion,
+                    self.total_presupuesto,
+                    self.total_gastado,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
         )
-        self.vista.update()
+        self.page.update()
+
+    def guardar_cambios_presupuesto(self, e, presupuesto):
+        try:
+            self.cursor.execute(
+                "UPDATE presupuesto SET cod_cliente=%s, descripcion=%s, total_presupuesto=%s, total_gastado=%s WHERE nro_presupuesto=%s",
+                (
+                    self.cod_cliente.value,
+                    self.descripcion.value,
+                    self.total_presupuesto.value,
+                    self.total_gastado.value,
+                    self.nro_presupuesto.value,
+                ),
+            )
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Presupuesto actualizado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_presupuesto()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al actualizar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def search(self, e):
+        search_term = self.search_field.value.lower()
+        search_column = self.search_column.value
+        filtered_data = []
+
+        for row in self.all_data:
+            if search_column == "nro_presupuesto" and str(row[0]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "cod_cliente" and str(row[1]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "descripcion" and row[2].lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "total_presupuesto" and str(row[3]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "total_gastado" and str(row[4]).lower().__contains__(search_term):
+                filtered_data.append(row)
+
+        self.data_table, total_presupuesto, total_gastado = self.create_presupuesto_table(filtered_data)
+        self.page.update()
+
+    def create_presupuesto_table(self, data=None):
+        if not self.cursor:
+            print("No hay conexión a la base de datos")
+            return ft.Text("No hay conexión a la base de datos"), 0, 0
+
+        if data is None:
+            listado_todos_presupuestos = """
+                SELECT nro_presupuesto, cod_cliente, descripcion, total_presupuesto, total_gastado
+                FROM presupuesto
+                ORDER BY nro_presupuesto
+            """
+            self.cursor.execute(listado_todos_presupuestos)
+            datos_presupuestos = self.cursor.fetchall()
+        else:
+            datos_presupuestos = data
+
+        rows = []
+        total_presupuesto = 0
+        total_gastado = 0
+
+        for presupuesto in datos_presupuestos:
+            total_presupuesto += float(presupuesto[3] or 0)
+            total_gastado += float(presupuesto[4] or 0)
+            eliminar_button = ft.IconButton(
+                icon=ft.Icons.DELETE,
+                tooltip="Borrar",
+                on_click=lambda e, p=presupuesto: self.eliminar_presupuesto(e, p),
+            )
+            actualizar_button = ft.IconButton(
+                icon=ft.Icons.EDIT,
+                tooltip="Modificar",
+                on_click=lambda e, p=presupuesto: self.actualizar_presupuesto(e, p),
+            )
+            rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(str(presupuesto[0]))),
+                        ft.DataCell(ft.Text(str(presupuesto[1]))),
+                        ft.DataCell(ft.Text(presupuesto[2])),
+                        ft.DataCell(ft.Text(str(presupuesto[3]))),
+                        ft.DataCell(ft.Text(str(presupuesto[4]))),
+                        ft.DataCell(ft.Row(controls=[eliminar_button, actualizar_button])),
+                    ],
+                ),
+            )
+
+        data_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Nro Presupuesto")),
+                ft.DataColumn(ft.Text("Código Cliente")),
+                ft.DataColumn(ft.Text("Descripción")),
+                ft.DataColumn(ft.Text("Total Presupuesto")),
+                ft.DataColumn(ft.Text("Total Gastado")),
+                ft.DataColumn(ft.Text("Acciones")),
+            ],
+            rows=rows,
+        )
+        return data_table, total_presupuesto, total_gastado

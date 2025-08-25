@@ -224,7 +224,7 @@ CREATE TABLE `ficha_tecnica` (
   PRIMARY KEY (`nro_ficha`),
   KEY `FK_CodCliente` (`cod_cliente`),
   CONSTRAINT `FK_CodCliente` FOREIGN KEY (`cod_cliente`) REFERENCES `cliente` (`cod_cliente`) ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+);
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

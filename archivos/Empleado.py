@@ -1,217 +1,288 @@
 import flet as ft
 import pymysql
 
-def abrir_puerta():
-    puerta = None
+def connect_to_db():
     try:
-        puerta = pymysql.connect(
+        connection = pymysql.connect(
             host="localhost",
             port=3306,
             user="root",
             password="root",
             database="taller_mecanico",
-            ssl_disabled=True
+            ssl_disabled=True,
         )
-        print("Conexion exitosa")
-    except Exception as error:
-        print("Error al conectar:", error)
-    return puerta
+        if connection.is_connected():
+            print("Conexión exitosa")
+            return connection
+    except Exception as ex:
+        print("Conexión errónea")
+        print(ex)
+        return None
 
-class VentanaPersonal:
-    def __init__(self, pantalla, volver_a_inicio):
-        self.vista = pantalla
-        self.volver_menu_principal = volver_a_inicio
-        self.db = abrir_puerta()
-        if self.db:
-            self.cur = self.db.cursor()
-        else:
-            self.cur = None
-        self.mostrar_personal()
+class Herramienta_Empleado:
+    def __init__(self, page: ft.Page, main_menu_callback):
+        self.page = page
+        self.main_menu_callback = main_menu_callback
+        self.connection = connect_to_db()
+        self.cursor = self.connection.cursor() if self.connection else None
+        self.search_field = ft.TextField(label="Buscar", width=300, on_change=self.search)
+        self.search_column = ft.Dropdown(
+            options=[
+                ft.dropdown.Option("legajo"),
+                ft.dropdown.Option("apellido"),
+                ft.dropdown.Option("nombre"),
+                ft.dropdown.Option("dni"),
+                ft.dropdown.Option("direccion"),
+                ft.dropdown.Option("telefono"),
+            ],
+            value="apellido",
+            width=200,
+            on_change=self.search,
+        )
+        self.mostrar_empleado()
 
-    def volver_a_menu(self, evento):
-        self.vista.clean()
-        self.volver_menu_principal(self.vista)
-
-    def imprimir_listado(self, evento):
-        self.vista.snack_bar = ft.SnackBar(ft.Text("No se puede imprimir todavia"))
-        self.vista.snack_bar.open = True
-        self.vista.update()
-
-    def consulta_personal(self, evento):
-        self.vista.clean()
-        self.vista.add(ft.Text("Consulta de Personal", size=20, weight="bold"))
-        self.vista.add(self.tabla_personal())
-        self.vista.add(ft.ElevatedButton("Volver", on_click=self.mostrar_personal))
-        self.vista.update()
-
-    def guardar_edicion(self, evento, persona):
-        try:
-            self.cur.execute(
-                "UPDATE persona SET apellido=%s, nombre=%s, direccion=%s, tele_contac=%s WHERE dni=%s",
-                (self.apellido.value, self.nombre.value, self.direccion.value, self.telefono.value, self.dni.value)
+    def mostrar_empleado(self):
+        self.page.clean()
+        header = ft.Row(
+            controls=[
+                ft.Text("Gestión de Empleados", size=20, weight="bold"),
+                ft.ElevatedButton(text="Alta", on_click=self.alta_empleado),
+                ft.ElevatedButton(text="Consulta", on_click=self.consulta_empleado),
+                ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_empleados),
+                ft.ElevatedButton(text="Volver al Menú", on_click=self.volver_al_menu),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+        search_row = ft.Row(
+            [
+                self.search_column,
+                self.search_field,
+            ],
+            alignment=ft.MainAxisAlignment.START,
+        )
+        self.data_table = self.create_empleado_table()
+        self.page.add(
+            ft.Container(
+                content=ft.Column(
+                    controls=[header, search_row, self.data_table],
+                    alignment=ft.MainAxisAlignment.START,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=20,
             )
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Personal actualizado correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_personal()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al actualizar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
-
-    def actualizar_persona(self, evento, persona):
-        self.vista.clean()
-        self.legajo = ft.TextField(label="Legajo", value=str(persona[5]), width=250, disabled=True)
-        self.dni = ft.TextField(label="DNI", value=str(persona[2]), width=250, disabled=True)
-        self.apellido = ft.TextField(label="Apellido", value=persona[0], width=250)
-        self.nombre = ft.TextField(label="Nombre", value=persona[1], width=250)
-        self.direccion = ft.TextField(label="Direccion", value=persona[3], width=250)
-        self.telefono = ft.TextField(label="Telefono", value=persona[4], width=250)
-
-        btn_guardar = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_edicion(e, persona))
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_personal)
-
-        self.vista.add(
-            ft.Column([
-                ft.Text("Editar Personal", size=20, weight="bold"),
-                self.legajo,
-                self.dni,
-                self.apellido,
-                self.nombre,
-                self.direccion,
-                self.telefono,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
         )
-        self.vista.update()
 
-    def eliminar_persona(self, evento, persona):
-        try:
-            dni = persona[2]
-            legajo = persona[5]
-            self.cur.execute("DELETE FROM empleado WHERE legajo = %s", (legajo,))
-            self.cur.execute("DELETE FROM persona WHERE dni = %s", (dni,))
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Personal eliminado correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_personal()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al eliminar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
+    def alta_empleado(self, e):
+        self.page.clean()
+        self.legajo = ft.TextField(label="Legajo", width=300)
+        self.dni = ft.TextField(label="DNI", width=300)
+        self.apellido = ft.TextField(label="Apellido", width=300)
+        self.nombre = ft.TextField(label="Nombre", width=300)
+        self.direccion = ft.TextField(label="Dirección", width=300)
+        self.telefono = ft.TextField(label="Teléfono", width=300)
 
-    def guardar_nuevo(self, evento):
+        guardar_btn = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_empleado)
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_empleado)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Alta de Empleado", size=24, weight="bold"),
+                    self.legajo,
+                    self.dni,
+                    self.apellido,
+                    self.nombre,
+                    self.direccion,
+                    self.telefono,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
+        )
+        self.page.update()
+
+    def guardar_empleado(self, e):
         try:
-            self.cur.execute(
+            self.cursor.execute(
                 "INSERT INTO persona (dni, apellido, nombre, direccion, tele_contac) VALUES (%s, %s, %s, %s, %s)",
-                (self.dni.value, self.apellido.value, self.nombre.value, self.direccion.value, self.telefono.value)
+                (
+                    self.dni.value,
+                    self.apellido.value,
+                    self.nombre.value,
+                    self.direccion.value,
+                    self.telefono.value,
+                ),
             )
-            self.cur.execute(
+            self.cursor.execute(
                 "INSERT INTO empleado (legajo, dni) VALUES (%s, %s)",
-                (self.legajo.value, self.dni.value)
+                (self.legajo.value, self.dni.value),
             )
-            self.db.commit()
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Personal guardado correctamente"))
-            self.vista.snack_bar.open = True
-            self.mostrar_personal()
-        except Exception as error:
-            self.vista.snack_bar = ft.SnackBar(ft.Text("Error al guardar: {}".format(error)))
-            self.vista.snack_bar.open = True
-            self.vista.update()
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Empleado guardado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_empleado()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al guardar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
 
-    def alta_personal(self, evento):
-        self.vista.clean()
-        self.legajo = ft.TextField(label="Legajo", width=250)
-        self.dni = ft.TextField(label="DNI", width=250)
-        self.apellido = ft.TextField(label="Apellido", width=250)
-        self.nombre = ft.TextField(label="Nombre", width=250)
-        self.direccion = ft.TextField(label="Direccion", width=250)
-        self.telefono = ft.TextField(label="Telefono", width=250)
+    def consulta_empleado(self, e):
+        self.page.clean()
+        self.page.add(ft.Text("Consulta de Empleados", size=24, weight="bold"))
+        self.page.add(self.create_empleado_table())
+        self.page.add(ft.ElevatedButton("Volver", on_click=self.mostrar_empleado))
+        self.page.update()
 
-        btn_guardar = ft.ElevatedButton("Guardar", icon=ft.Icons.SAVE, on_click=self.guardar_nuevo)
-        btn_volver = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_personal)
+    def imprimir_empleados(self, e):
+        self.page.snack_bar = ft.SnackBar(ft.Text("Función de impresión no implementada"))
+        self.page.snack_bar.open = True
+        self.page.update()
 
-        self.vista.add(
-            ft.Column([
-                ft.Text("Alta de Personal", size=20, weight="bold"),
-                self.legajo,
-                self.dni,
-                self.apellido,
-                self.nombre,
-                self.direccion,
-                self.telefono,
-                ft.Row([btn_guardar, btn_volver], spacing=8),
-            ], spacing=8)
-        )
-        self.vista.update()
+    def volver_al_menu(self, e):
+        self.page.clean()
+        self.main_menu_callback(self.page)
 
-    def tabla_personal(self):
-        if not self.cur:
-            print("No hay conexion a la base de datos")
-            return ft.Text("No hay conexion a la base de datos")
+    def create_empleado_table(self):
+        if not self.cursor:
+            print("No hay conexión a la base de datos")
+            return ft.Text("No hay conexión a la base de datos")
 
-        consulta = """
+        listado_todos_empleados = """
             SELECT per.apellido, per.nombre, per.dni, per.direccion, per.tele_contac, emp.legajo
             FROM persona per INNER JOIN empleado emp ON per.dni = emp.dni
             ORDER BY per.apellido
         """
-        self.cur.execute(consulta)
-        datos = self.cur.fetchall()
-        filas = []
+        self.cursor.execute(listado_todos_empleados)
+        datos_empleados = self.cursor.fetchall()
+        self.all_data = datos_empleados
+        rows = self.get_rows(datos_empleados)
 
-        for persona in datos:
-            btn_borrar = ft.IconButton(
-                icon=ft.Icons.DELETE,
-                tooltip="Borrar",
-                on_click=lambda e, p=persona: self.eliminar_persona(e, p),
-            )
-            btn_editar = ft.IconButton(
-                icon=ft.Icons.EDIT,
-                tooltip="Modificar",
-                on_click=lambda e, p=persona: self.actualizar_persona(e, p),
-            )
-            filas.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(persona[0])),
-                        ft.DataCell(ft.Text(persona[1])),
-                        ft.DataCell(ft.Text(str(persona[2]))),
-                        ft.DataCell(ft.Text(persona[3])),
-                        ft.DataCell(ft.Text(persona[4])),
-                        ft.DataCell(ft.Text(str(persona[5]))),
-                        ft.DataCell(ft.Row(controls=[btn_borrar, btn_editar])),
-                    ],
-                ),
-            )
-
-        tabla = ft.DataTable(
+        data_table = ft.DataTable(
             columns=[
                 ft.DataColumn(ft.Text("Apellido")),
                 ft.DataColumn(ft.Text("Nombre")),
                 ft.DataColumn(ft.Text("DNI")),
-                ft.DataColumn(ft.Text("Direccion")),
-                ft.DataColumn(ft.Text("Telefono")),
+                ft.DataColumn(ft.Text("Dirección")),
+                ft.DataColumn(ft.Text("Teléfono")),
                 ft.DataColumn(ft.Text("Legajo")),
                 ft.DataColumn(ft.Text("Acciones")),
             ],
-            rows=filas,
+            rows=rows,
         )
-        return tabla
+        return data_table
 
-    def mostrar_personal(self):
-        self.vista.clean()
-        fila_botones = ft.Row([
-            ft.Text("Gestion de Personal", size=18, weight="bold"),
-            ft.ElevatedButton(text="Alta", on_click=self.alta_personal),
-            ft.ElevatedButton(text="Consulta", on_click=self.consulta_personal),
-            ft.ElevatedButton(text="Imprimir", on_click=self.imprimir_listado),
-            ft.ElevatedButton(text="Volver", on_click=self.volver_a_menu),
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        tabla = self.tabla_personal()
-        self.vista.add(
-            ft.Column([
-                fila_botones,
-                tabla
-            ], alignment=ft.MainAxisAlignment.START, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    def get_rows(self, empleados):
+        rows = []
+        for empleado in empleados:
+            eliminar_button = ft.IconButton(
+                icon=ft.Icons.DELETE,
+                tooltip="Borrar",
+                on_click=lambda e, emp=empleado: self.eliminar_empleado(e, emp),
+            )
+            actualizar_button = ft.IconButton(
+                icon=ft.Icons.EDIT,
+                tooltip="Modificar",
+                on_click=lambda e, emp=empleado: self.actualizar_empleado(e, emp),
+            )
+            rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(empleado[0])),
+                        ft.DataCell(ft.Text(empleado[1])),
+                        ft.DataCell(ft.Text(str(empleado[2]))),
+                        ft.DataCell(ft.Text(empleado[3])),
+                        ft.DataCell(ft.Text(empleado[4])),
+                        ft.DataCell(ft.Text(str(empleado[5]))),
+                        ft.DataCell(ft.Row(controls=[eliminar_button, actualizar_button])),
+                    ],
+                ),
+            )
+        return rows
+
+    def search(self, e):
+        search_term = self.search_field.value.lower()
+        search_column = self.search_column.value
+        filtered_data = []
+
+        for row in self.all_data:
+            if search_column == "legajo" and str(row[5]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "apellido" and row[0].lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "nombre" and row[1].lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "dni" and str(row[2]).lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "direccion" and row[3].lower().__contains__(search_term):
+                filtered_data.append(row)
+            elif search_column == "telefono" and row[4].lower().__contains__(search_term):
+                filtered_data.append(row)
+
+        self.data_table.rows = self.get_rows(filtered_data)
+        self.page.update()
+
+    def eliminar_empleado(self, e, empleado):
+        try:
+            dni = empleado[2]
+            legajo = empleado[5]
+            self.cursor.execute("DELETE FROM empleado WHERE legajo = %s", (legajo,))
+            self.cursor.execute("DELETE FROM persona WHERE dni = %s", (dni,))
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Empleado eliminado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_empleado()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al eliminar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
+
+    def actualizar_empleado(self, e, empleado):
+        self.page.clean()
+        self.legajo = ft.TextField(label="Legajo", value=str(empleado[5]), width=300, disabled=True)
+        self.dni = ft.TextField(label="DNI", value=str(empleado[2]), width=300, disabled=True)
+        self.apellido = ft.TextField(label="Apellido", value=empleado[0], width=300)
+        self.nombre = ft.TextField(label="Nombre", value=empleado[1], width=300)
+        self.direccion = ft.TextField(label="Dirección", value=empleado[3], width=300)
+        self.telefono = ft.TextField(label="Teléfono", value=empleado[4], width=300)
+
+        guardar_btn = ft.ElevatedButton("Guardar Cambios", icon=ft.Icons.SAVE, on_click=lambda e: self.guardar_cambios_empleado(e, empleado))
+        volver_btn = ft.ElevatedButton("Volver", icon=ft.Icons.ARROW_BACK, on_click=self.mostrar_empleado)
+
+        self.page.add(
+            ft.Column(
+                [
+                    ft.Text("Editar Empleado", size=24, weight="bold"),
+                    self.legajo,
+                    self.dni,
+                    self.apellido,
+                    self.nombre,
+                    self.direccion,
+                    self.telefono,
+                    ft.Row([guardar_btn, volver_btn], spacing=10),
+                ],
+                spacing=10,
+            )
         )
-        self.vista.update()
+        self.page.update()
+
+    def guardar_cambios_empleado(self, e, empleado):
+        try:
+            self.cursor.execute(
+                "UPDATE persona SET apellido=%s, nombre=%s, direccion=%s, tele_contac=%s WHERE dni=%s",
+                (
+                    self.apellido.value,
+                    self.nombre.value,
+                    self.direccion.value,
+                    self.telefono.value,
+                    self.dni.value,
+                ),
+            )
+            self.connection.commit()
+            self.page.snack_bar = ft.SnackBar(ft.Text("Empleado actualizado correctamente"))
+            self.page.snack_bar.open = True
+            self.mostrar_empleado()
+        except Exception as ex:
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al actualizar: {ex}"))
+            self.page.snack_bar.open = True
+            self.page.update()
