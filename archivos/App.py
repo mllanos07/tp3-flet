@@ -1,4 +1,5 @@
-
+# correr codigo:Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force; .\.venv\Scripts\Activate.ps1
+# python archivos\App.py
 import flet as ft
 import pymysql
 from Usuario import Herramienta_Usuario
