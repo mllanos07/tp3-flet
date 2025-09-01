@@ -14,15 +14,16 @@ def connect_to_db():
     try:
         connection = pymysql.connect(
             host="localhost",
-            port="3306",
+            port=3306,
             user="root",
             password="root",
             database="taller_mecanico",
             ssl_disabled=True,
         )
-        if connection.is_connected():
-            print("Conexión exitosa")
-            return connection
+        # pymysql.connect() raises an exception on failure. If we reach here,
+        # the connection was successful — return the connection object.
+        print("Conexión exitosa")
+        return connection
     except Exception as ex:
         print("Conexión errónea")
         print(ex)
@@ -32,7 +33,7 @@ def connect_to_db():
 connection = connect_to_db()
 
 
-# Navegacionn
+# Navegacion
 def cliente(e, page: ft.Page):
     Herramienta_Cliente(page, menu_principal)
 

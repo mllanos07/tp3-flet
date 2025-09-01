@@ -12,9 +12,10 @@ def connect_to_db():
             database="taller_mecanico",
             ssl_disabled=True,
         )
-        if connection.is_connected():
-            print("Conexión exitosa")
-            return connection
+        # pymysql.connect() raises an exception on failure. If we reach here,
+        # the connection succeeded.
+        print("Conexión exitosa")
+        return connection
     except Exception as ex:
         print("Conexión errónea")
         print(ex)
@@ -140,8 +141,15 @@ class Herramienta_Repuesto:
             FROM repuestos
             ORDER BY cod_repuesto
         """
-        self.cursor.execute(listado_todos_repuestos)
-        datos_repuestos = self.cursor.fetchall()
+        try:
+            self.cursor.execute(listado_todos_repuestos)
+            datos_repuestos = self.cursor.fetchall()
+        except Exception as ex:
+            # Likely the table does not exist or another SQL error occurred.
+            print(f"Error al obtener repuestos: {ex}")
+            self.page.snack_bar = ft.SnackBar(ft.Text(f"Error al obtener repuestos: {ex}"))
+            self.page.snack_bar.open = True
+            return ft.Text("No hay datos de repuestos: ver consola para detalles")
         self.all_data = datos_repuestos
         rows = self.get_rows(datos_repuestos)
 

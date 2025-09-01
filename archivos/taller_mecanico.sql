@@ -14,24 +14,8 @@ USE `taller_mecanico`;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `repuestos`
---
-
-DROP TABLE IF EXISTS `repuestos`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `repuestos` (
-  `cod_repuesto` varchar(30) NOT NULL,
-  `descripcion` varchar(50) DEFAULT NULL,
-  `pcio_unit` float DEFAULT NULL,
-  PRIMARY KEY (`cod_repuesto`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Table structure for table `cliente`
@@ -224,7 +208,7 @@ CREATE TABLE `ficha_tecnica` (
   PRIMARY KEY (`nro_ficha`),
   KEY `FK_CodCliente` (`cod_cliente`),
   CONSTRAINT `FK_CodCliente` FOREIGN KEY (`cod_cliente`) REFERENCES `cliente` (`cod_cliente`) ON UPDATE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -283,7 +267,7 @@ CREATE TABLE `persona` (
 
 LOCK TABLES `persona` WRITE;
 /*!40000 ALTER TABLE `persona` DISABLE KEYS */;
-INSERT INTO `persona` VALUES ('17890452','LLANOS','MATIAS','LOS DURMIENTES 969','3515504584'),('17896456','MATEO','RODOLFO','BSFBGFG 7896','351789654');
+INSERT INTO `persona` VALUES ('17890452','POSTAI','FABIAN','AYACUCHO 969','3515504584'),('17896456','PEREZ','RODOLFO','BSFBGFG 7896','351789654');
 /*!40000 ALTER TABLE `persona` ENABLE KEYS */;
 UNLOCK TABLES;
 
