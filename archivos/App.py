@@ -21,6 +21,8 @@ def connect_to_db():
             database="taller_mecanico",
             ssl_disabled=True,
         )
+        # pymysql.connect() raises an exception on failure. If we reach here,
+        # the connection succeeded.
         print("Conexión exitosa")
         return connection
     except Exception as ex:
