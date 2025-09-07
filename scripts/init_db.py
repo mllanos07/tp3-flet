@@ -2,7 +2,7 @@ import pymysql
 import os
 import sys
 
-DB_CONFIG = {
+CONFIG_DB = {
     "host": "localhost",
     "port": 3306,
     "user": "root",
@@ -10,7 +10,7 @@ DB_CONFIG = {
     "database": "taller_mecanico",
 }
 
-CREATE_REPUESTOS = """
+SQL_CREAR_REPUESTOS = """
 CREATE TABLE IF NOT EXISTS repuestos (
   cod_repuesto VARCHAR(30) NOT NULL PRIMARY KEY,
   descripcion VARCHAR(255) DEFAULT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS repuestos (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 """
 
-CREATE_PROVEEDOR = """
+SQL_CREAR_PROVEEDOR = """
 CREATE TABLE IF NOT EXISTS proveedor (
     cod_proveedor VARCHAR(30) NOT NULL PRIMARY KEY,
     nombre VARCHAR(255) DEFAULT NULL,
@@ -29,68 +29,77 @@ CREATE TABLE IF NOT EXISTS proveedor (
 """
 
 if __name__ == "__main__":
+    # ejecuta el archivo
     try:
-        conn = pymysql.connect(**DB_CONFIG, ssl_disabled=True)
-        with conn.cursor() as cur:
-            cur.execute(CREATE_REPUESTOS)
-            cur.execute(CREATE_PROVEEDOR)
-        conn.commit()
+        conexion = pymysql.connect(**CONFIG_DB, ssl_disabled=True)
+        with conexion.cursor() as cursor:
+            cursor.execute(SQL_CREAR_REPUESTOS)
+            cursor.execute(SQL_CREAR_PROVEEDOR)
+        conexion.commit()
         print("Tabla 'repuestos' creada o ya existente.")
         print("Tabla 'proveedor' creada o ya existente.")
 
-        sql_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'archivos', 'taller_mecanico.sql')
-        if os.path.exists(sql_path):
-            print(f"Encontrado SQL dump en: {sql_path} — intentando ejecutar...")
-            with open(sql_path, 'r', encoding='utf-8') as f:
-                sql_text = f.read()
+        # busca archivo sql dentro del proyecto
+        ruta_sql = os.path.join(os.path.dirname(os.path.dirname(__file__)), "archivos", "taller_mecanico.sql")
+        if os.path.exists(ruta_sql):
+            print(f"Encontrado SQL dump en: {ruta_sql} — intentando ejecutar...")
+            # Abre el archivo en modo lectura
+            with open(ruta_sql, "r", encoding="utf-8") as f:
+                # lee y guarda contenidio
+                texto_sql = f.read()
 
-            statements = []
-            cur_stmt = []
-            for line in sql_text.splitlines():
-                stripped = line.strip()
-                if not stripped or stripped.startswith('--') or stripped.startswith('/*') or stripped.startswith('*/'):
+            sentencias = [] #guarda lineas
+            partes = [] # gurda ordenes
+            for linea in texto_sql.splitlines():
+                linea_limpia = linea.strip() # Limpia la línea
+                if not linea_limpia or linea_limpia.startswith("--") or linea_limpia.startswith("/*") or linea_limpia.startswith("*/"):
                     continue
-                cur_stmt.append(line)
-                if stripped.endswith(';'):
-                    stmt = '\n'.join(cur_stmt).strip()
-                    if stmt.endswith(';'):
-                        stmt = stmt[:-1]
-                    if stmt:
-                        statements.append(stmt)
-                    cur_stmt = []
-
-            executed = 0
-            with conn.cursor() as cur2:
+                partes.append(linea)
+                if linea_limpia.endswith(";"):
+                    sentencia = "\n".join(partes).strip()
+                    if sentencia.endswith(";"): # si termina en ; termino
+                        sentencia = sentencia[:-1]
+                    if sentencia:
+                        sentencias.append(sentencia)
+                    partes = []
+                    
+            # toma odenes sql y ejecuta una por una
+            ejecutadas = 0
+            with conexion.cursor() as cursor2: # escribe en DB
                 try:
-                    cur2.execute("SET FOREIGN_KEY_CHECKS=0;")
+                    cursor2.execute("SET FOREIGN_KEY_CHECKS=0;") # apaga comprovaciones
                 except Exception:
                     pass
 
-                for stmt in statements:
-                    s = stmt.strip()
+                for sentencia in sentencias: # recorrer odenes
+                    s = sentencia.strip() # limpia oden
                     if not s:
+                        # si queda vacia la salta
                         continue
-                    up = s.upper()
-                    if up.startswith("CREATE DATABASE") or up.startswith("USE ") or up.startswith("LOCK TABLES") or up.startswith("UNLOCK TABLES") or s.startswith('/*!'):
-                        continue
+                    # Filtra cosas que no queremos ejecutar
+                    mayus = s.upper()
+                    if mayus.startswith("CREATE DATABASE") or mayus.startswith("USE ") or mayus.startswith("LOCK TABLES") or mayus.startswith("UNLOCK TABLES") or s.startswith("/*!"):
+                        continue # evita duplicados
                     try:
-                        cur2.execute(s)
-                        executed += 1
-                    except Exception as ex_stmt:
-                        print(f"Omitiendo statement por error: {ex_stmt}\n-- Statement start --\n{s}\n-- Statement end --")
+                        cursor2.execute(s) # ejecuta orden valida
+                        ejecutadas = ejecutadas + 1
+                    except Exception as error_sentencia: # en caso de falla muetra error y sigue
+                        print(f"Omitiendo statement por error: {error_sentencia}\n-- Statement start --\n{s}\n-- Statement end --")
 
                 try:
-                    cur2.execute("SET FOREIGN_KEY_CHECKS=1;")
+                    cursor2.execute("SET FOREIGN_KEY_CHECKS=1;") # encender claves foraneas
                 except Exception:
                     pass
-            conn.commit()
-            print(f"Ejecución del SQL dump completada. Statements ejecutados: {executed}")
+
+            conexion.commit()
+            # cuantas se ejecutaron bien
+            print(f"Ejecución del SQL dump completada. Statements ejecutados: {ejecutadas}")
         else:
-            print(f"No se encontró {sql_path}; salto de import completo del dump.")
-    except Exception as ex:
-        print("Error al inicializar la base de datos:", ex)
-    finally:
+            print(f"No se encontró {ruta_sql}; salto de import completo del dump.")
+    except Exception as error: # cuenta errores grandes
+        print("Error al inicializar la base de datos:", error)
+    finally: # cierra conexion, bien o mal
         try:
-            conn.close()
+            conexion.close()
         except Exception:
             pass
